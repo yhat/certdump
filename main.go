@@ -62,21 +62,22 @@ func main() {
 }
 
 type Certificate struct {
-	SignatureAlgorithm string
-	PublicKeyAlgorithm string
-	Version            int
-	SerialNumber       string
+	SerialNumber string   `yaml:"SerialNumber"`
+	Issuer       string   `yaml:"Issuer"`
+	ValidFrom    string   `yaml:"ValidFrom"`
+	Expires      string   `yaml:"ExpiresIn"`
+	KeyUsage     []string `yaml:"KeyUsage,omitempty"`
 
-	Issuer              string
-	NotBefore, NotAfter string
-	KeyUsage            []string
+	ExtKeyUsage []string `yaml:"ExtKeyUsage,omitempty"`
+	IsCA        bool     `yaml:"IsCA"`
 
-	ExtKeyUsage []string
-	IsCA        bool
+	DNSNames       []string `yaml:"DNSNames,omitempty"`
+	EmailAddresses []string `yaml:"EmailAddresses,omitempty"`
+	IPAddresses    []net.IP `yaml:"IPAddresses,omitempty"`
 
-	DNSNames       []string
-	EmailAddresses []string
-	IPAddresses    []net.IP
+	SignatureAlgorithm string `yaml:"SignatureAlgorithm"`
+	PublicKeyAlgorithm string `yaml:"PublicKeyAlgorithm"`
+	Version            int    `yaml:"X509Version"`
 }
 
 func PrintableCertificate(cert *x509.Certificate) *Certificate {
@@ -86,9 +87,7 @@ func PrintableCertificate(cert *x509.Certificate) *Certificate {
 		Version:            cert.Version,
 		SerialNumber:       cert.SerialNumber.String(),
 
-		NotBefore: cert.NotBefore.Format(time.UnixDate),
-		NotAfter:  cert.NotAfter.Format(time.UnixDate),
-		KeyUsage:  KeyUsageStrings(cert.KeyUsage),
+		KeyUsage: KeyUsageStrings(cert.KeyUsage),
 
 		ExtKeyUsage: ExtKeyUsageStrings(cert.ExtKeyUsage),
 		IsCA:        cert.IsCA,
@@ -97,6 +96,23 @@ func PrintableCertificate(cert *x509.Certificate) *Certificate {
 		EmailAddresses: cert.EmailAddresses,
 		IPAddresses:    cert.IPAddresses,
 	}
+
+	now := time.Now()
+	expires := "*already expired*"
+	isExpired := now.After(cert.NotAfter)
+	if !isExpired {
+		diff := cert.NotAfter.Sub(now)
+		days := diff.Hours() / 24.
+
+		expires = fmt.Sprintf("%.0f days", days)
+	}
+	c.Expires = expires
+
+	format := "Jan 02 15:04:05 MST 2006"
+	before := cert.NotBefore.Format(format)
+	after := cert.NotAfter.Format(format)
+	c.ValidFrom = fmt.Sprintf("%s to %s", before, after)
+
 	if len(cert.Issuer.Organization) == 1 {
 		c.Issuer = cert.Issuer.Organization[0]
 	}
